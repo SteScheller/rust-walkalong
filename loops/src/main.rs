@@ -42,7 +42,7 @@ fn main() {
     }
     println!("LIFTOFF!!!");
 
-    for number in (4..1){
+    for number in 4..1{
         println!("{number}!");
     }
     println!("ANOTHER LIFTOFF!!!");
