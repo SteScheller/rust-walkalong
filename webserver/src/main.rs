@@ -10,7 +10,7 @@ use webserver::ThreadPool;
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
     let pool = ThreadPool::build(4).unwrap();
-    
+
     for stream in listener.incoming() {
         let stream = stream.unwrap();
 
@@ -40,6 +40,7 @@ fn handle_connection(mut stream: TcpStream) {
         _ => ("HTTP/1.1 404 NOT FOUND", "404.html "),
     };
 
+    println!("{filename}");
     let content = fs::read_to_string(filename).unwrap();
     let length = content.len();
 

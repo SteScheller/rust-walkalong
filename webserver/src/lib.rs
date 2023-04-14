@@ -1,8 +1,14 @@
-use std::thread;
+use std::{
+    sync::{mpsc, Arc, Mutex},
+    thread,
+};
 
 pub struct ThreadPool {
     workers: Vec<Worker>,
+    sender: mpsc::Sender<Job>,
 }
+
+type Job = Box<dyn FnOnce() + Send + 'static>;
 
 #[derive(Debug)]
 pub struct PoolCreationError;
@@ -18,14 +24,17 @@ impl ThreadPool {
     pub fn new(size: usize) -> ThreadPool {
         assert!(size > 0);
 
+        let (sender, receiver) = mpsc::channel();
+        let receiver = Arc::new(Mutex::new(receiver));
+
         let mut workers = Vec::with_capacity(size);
 
         for id in 0..size {
             // create some threads and store them
-            workers.push( Worker::new(id));
+            workers.push(Worker::new(id, Arc::clone(&receiver)));
         }
 
-        ThreadPool { workers }
+        ThreadPool { workers, sender }
     }
 
     /// Try to create a new ThreadPool.
@@ -42,10 +51,20 @@ impl ThreadPool {
         }
     }
 
+    /// Schedules a closure for execution by the ThreadPool.
+    ///
+    /// Schedules closure `f` in a queue and executes it when a thread becomes available.
+    ///
+    /// # Panics
+    ///
+    /// The `execute` function will panic if scheduling fails.
     pub fn execute<F>(&self, f: F)
     where
         F: FnOnce() + Send + 'static,
     {
+        let job = Box::new(f);
+
+        self.sender.send(job).unwrap();
     }
 }
 
@@ -55,9 +74,17 @@ struct Worker {
 }
 
 impl Worker {
-    fn new(id: usize) -> Worker {
-        let thread = thread::spawn(|| {});
+    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
+        let thread = thread::Builder::new()
+            .name(format!("Worker {id}"))
+            .spawn(move || loop {
+                let job = receiver.lock().unwrap().recv().unwrap();
+                println!("Worker {id} got a job; executing.");
 
-        Worker{id, thread}
+                job();
+            })
+            .unwrap();
+
+        Worker { id, thread }
     }
 }
